@@ -83,6 +83,29 @@ async function fetchUnitNames(
   return nameMap;
 }
 
+async function rpcSumSalesByUnit(
+  supabase: SupabaseClient,
+  from: string,
+  to: string
+): Promise<{ data: RpcUnitRow[] | null; error: unknown }> {
+  const res = await supabase.rpc("sum_sales_by_unit", { p_from: from, p_to: to });
+  return { data: res.data as RpcUnitRow[] | null, error: res.error };
+}
+
+async function fetchUnitsOpenDate(
+  supabase: SupabaseClient
+): Promise<{ id: string; open_date: string | null }[]> {
+  const res = await supabase.from("units").select("id, open_date");
+  return (res.data ?? []) as { id: string; open_date: string | null }[];
+}
+
+async function fetchUnitsInfo(
+  supabase: SupabaseClient
+): Promise<{ id: string; name: string; open_date: string | null }[]> {
+  const res = await supabase.from("units").select("id, name, open_date");
+  return (res.data ?? []) as { id: string; name: string; open_date: string | null }[];
+}
+
 // ── KPIs ──────────────────────────────────────────────────────────────────────
 
 async function rpcSumSales(
@@ -109,15 +132,12 @@ export async function getKpis(
   const comp = shift364Days(cur);
   const prevYear = shiftYear(cur, -1);
 
-  type UnitOpenDate = { id: string; open_date: string | null };
-  type SumByUnitRes = { data: RpcUnitRow[] | null; error: unknown };
-
-  const [curTotal, prevTotal, curByUnitRes, compByUnitRes, unitsRes] = await Promise.all([
+  const [curTotal, prevTotal, curByUnitRes, compByUnitRes, unitsOpenDates] = await Promise.all([
     rpcSumSales(supabase, cur.from, cur.to, unitId),
     rpcSumSales(supabase, prevYear.from, prevYear.to, unitId),
-    supabase.rpc("sum_sales_by_unit", { p_from: cur.from, p_to: cur.to }) as unknown as Promise<SumByUnitRes>,
-    supabase.rpc("sum_sales_by_unit", { p_from: comp.from, p_to: comp.to }) as unknown as Promise<SumByUnitRes>,
-    supabase.from("units").select("id, open_date") as unknown as Promise<{ data: UnitOpenDate[] | null; error: unknown }>,
+    rpcSumSalesByUnit(supabase, cur.from, cur.to),
+    rpcSumSalesByUnit(supabase, comp.from, comp.to),
+    fetchUnitsOpenDate(supabase),
   ]);
 
   const revenue = curTotal.sales;
@@ -129,7 +149,7 @@ export async function getKpis(
 
   const curRows: RpcUnitRow[] = curByUnitRes.data ?? [];
   const compRows: RpcUnitRow[] = compByUnitRes.data ?? [];
-  const openDateMap = new Map((unitsRes.data ?? []).map((u) => [u.id, u.open_date]));
+  const openDateMap = new Map(unitsOpenDates.map((u) => [u.id, u.open_date]));
 
   const lflMode = getLflMode(gran);
   const periodStart = new Date(cur.from + "T00:00:00Z");
@@ -253,17 +273,11 @@ export async function getUnitsTable(
   const cur = resolveRange(dateParams);
   const comp = shift364Days(cur);
 
-  type UnitInfo = { id: string; name: string; open_date: string | null };
-  type SumByUnitRes = { data: RpcUnitRow[] | null; error: unknown };
-
-  const [curByUnitRes, compByUnitRes, unitsRes] = await Promise.all([
-    supabase.rpc("sum_sales_by_unit", { p_from: cur.from, p_to: cur.to }) as unknown as Promise<SumByUnitRes>,
-    supabase.rpc("sum_sales_by_unit", { p_from: comp.from, p_to: comp.to }) as unknown as Promise<SumByUnitRes>,
-    supabase.from("units").select("id, name, open_date") as unknown as Promise<{ data: UnitInfo[] | null; error: unknown }>,
+  const [curByUnitRes, compByUnitRes, unitsData] = await Promise.all([
+    rpcSumSalesByUnit(supabase, cur.from, cur.to),
+    rpcSumSalesByUnit(supabase, comp.from, comp.to),
+    fetchUnitsInfo(supabase),
   ]);
-
-  if (curByUnitRes.error) throw curByUnitRes.error;
-  if (compByUnitRes.error) throw compByUnitRes.error;
 
   const curMap = new Map<string, { sales: number; orders: number }>();
   for (const r of curByUnitRes.data ?? []) {
@@ -289,7 +303,7 @@ export async function getUnitsTable(
   }
 
   const rows: UnitRow[] = [];
-  for (const unitInfo of unitsRes.data ?? []) {
+  for (const unitInfo of unitsData) {
     const curData = curMap.get(unitInfo.id) ?? { sales: 0, orders: 0 };
     const compData = compMap.get(unitInfo.id) ?? { sales: 0, orders: 0 };
     const eligible = isEligible(unitInfo.id, unitInfo.open_date);
