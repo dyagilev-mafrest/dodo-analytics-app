@@ -115,9 +115,9 @@ export async function getKpis(
   const [curTotal, prevTotal, curByUnitRes, compByUnitRes, unitsRes] = await Promise.all([
     rpcSumSales(supabase, cur.from, cur.to, unitId),
     rpcSumSales(supabase, prevYear.from, prevYear.to, unitId),
-    supabase.rpc("sum_sales_by_unit", { p_from: cur.from, p_to: cur.to }) as Promise<SumByUnitRes>,
-    supabase.rpc("sum_sales_by_unit", { p_from: comp.from, p_to: comp.to }) as Promise<SumByUnitRes>,
-    supabase.from("units").select("id, open_date") as Promise<{ data: UnitOpenDate[] | null; error: unknown }>,
+    supabase.rpc("sum_sales_by_unit", { p_from: cur.from, p_to: cur.to }) as unknown as Promise<SumByUnitRes>,
+    supabase.rpc("sum_sales_by_unit", { p_from: comp.from, p_to: comp.to }) as unknown as Promise<SumByUnitRes>,
+    supabase.from("units").select("id, open_date") as unknown as Promise<{ data: UnitOpenDate[] | null; error: unknown }>,
   ]);
 
   const revenue = curTotal.sales;
@@ -257,9 +257,9 @@ export async function getUnitsTable(
   type SumByUnitRes = { data: RpcUnitRow[] | null; error: unknown };
 
   const [curByUnitRes, compByUnitRes, unitsRes] = await Promise.all([
-    supabase.rpc("sum_sales_by_unit", { p_from: cur.from, p_to: cur.to }) as Promise<SumByUnitRes>,
-    supabase.rpc("sum_sales_by_unit", { p_from: comp.from, p_to: comp.to }) as Promise<SumByUnitRes>,
-    supabase.from("units").select("id, name, open_date") as Promise<{ data: UnitInfo[] | null; error: unknown }>,
+    supabase.rpc("sum_sales_by_unit", { p_from: cur.from, p_to: cur.to }) as unknown as Promise<SumByUnitRes>,
+    supabase.rpc("sum_sales_by_unit", { p_from: comp.from, p_to: comp.to }) as unknown as Promise<SumByUnitRes>,
+    supabase.from("units").select("id, name, open_date") as unknown as Promise<{ data: UnitInfo[] | null; error: unknown }>,
   ]);
 
   if (curByUnitRes.error) throw curByUnitRes.error;
