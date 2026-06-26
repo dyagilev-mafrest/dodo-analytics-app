@@ -55,6 +55,18 @@ export interface OrdersChartPoint {
   byUnit: UnitOrders[];
 }
 
+export interface ChannelKpi {
+  revenue: number;
+  orders: number;
+  avgCheck: number;
+  prevRevenue: number;
+  prevOrders: number;
+  prevAvgCheck: number;
+  revenueDelta: number;
+  ordersDelta: number;
+  avgCheckDelta: number;
+}
+
 export interface KpiData {
   revenue: number;
   orders: number;

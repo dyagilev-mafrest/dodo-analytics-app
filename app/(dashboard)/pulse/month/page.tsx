@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase-server";
-import { getKpis } from "@/lib/queries/overview";
+import { getKpis, getChannelKpis } from "@/lib/queries/overview";
+import type { ChannelKpi } from "@/lib/types";
 import { TrendingUp, TrendingDown, Zap, ShieldAlert, Users, Star, Package } from "lucide-react";
 
 // ─── period helpers ───────────────────────────────────────────────────────────
@@ -126,10 +127,23 @@ function PlaceholderSection({ icon, title, items }: { icon: React.ComponentType<
 
 // ─── page ─────────────────────────────────────────────────────────────────────
 
+function channelMetrics(ch: ChannelKpi): MetricRow[] {
+  return [
+    { label: "Выручка",     value: fmtRub(ch.revenue),  prev: fmtRub(ch.prevRevenue),  delta: ch.revenueDelta },
+    { label: "Заказы",      value: fmt(ch.orders),       prev: fmt(ch.prevOrders),       delta: ch.ordersDelta },
+    { label: "Средний чек", value: fmtRub(ch.avgCheck), prev: fmtRub(ch.prevAvgCheck), delta: ch.avgCheckDelta },
+  ];
+}
+
 export default async function PulseMonthPage() {
   const period = computePrevMonth();
   const supabase = await createServerSupabase();
-  const kpis = await getKpis(supabase, { from: period.from, to: period.to }, "all", "week");
+  const dateParams = { from: period.from, to: period.to };
+
+  const [kpis, channels] = await Promise.all([
+    getKpis(supabase, dateParams, "all", "week"),
+    getChannelKpis(supabase, dateParams),
+  ]);
 
   const networkMetrics: MetricRow[] = [
     { label: "Выручка",     value: fmtRub(kpis.revenue),  prev: fmtRub(kpis.prevRevenue),  delta: kpis.revenueDelta },
@@ -153,8 +167,8 @@ export default async function PulseMonthPage() {
         <SectionHeader icon={TrendingUp} title="Продажи" />
         <div className="grid grid-cols-3 gap-4">
           <ChannelCard title="Сеть" metrics={networkMetrics} />
-          <ChannelCard title="Доставка" metrics={null} />
-          <ChannelCard title="Ресторан" metrics={null} />
+          <ChannelCard title="Доставка" metrics={channelMetrics(channels.delivery)} />
+          <ChannelCard title="Ресторан" metrics={channelMetrics(channels.restaurant)} />
         </div>
         <div className="grid grid-cols-4 gap-3">
           <LflPill label="LFL выручки" value={fmtPct(kpis.lflRevenue)} isTeal />

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { KpiData, RevenueChartPoint, OrdersChartPoint, UnitRow, Totals } from "@/lib/types";
+import type { KpiData, ChannelKpi, RevenueChartPoint, OrdersChartPoint, UnitRow, Totals } from "@/lib/types";
 
 export type Granularity = "day" | "week" | "month";
 
@@ -196,6 +196,70 @@ export async function getKpis(
     lflRevenue, lflOrders,
     yoyRevenue: lflRevenue,
     yoyOrders: lflOrders,
+  };
+}
+
+// ── Channel KPIs (sales_breakdown) ───────────────────────────────────────────
+
+type RawBreakdown = { sales_channel: string; sales: number; orders_count: number };
+
+const DELIVERY_CHANNELS = ["Delivery"];
+const RESTAURANT_CHANNELS = ["Dine-in", "Takeaway"];
+
+function aggChannel(rows: RawBreakdown[], channels: string[]) {
+  let revenue = 0, orders = 0;
+  for (const r of rows) {
+    if (channels.includes(r.sales_channel)) {
+      revenue += Number(r.sales);
+      orders += Number(r.orders_count);
+    }
+  }
+  const avgCheck = orders > 0 ? Math.round(revenue / orders) : 0;
+  return { revenue: Math.round(revenue), orders, avgCheck };
+}
+
+export async function getChannelKpis(
+  supabase: SupabaseClient,
+  dateParams: DateParams
+): Promise<{ delivery: ChannelKpi; restaurant: ChannelKpi }> {
+  const cur = resolveRange(dateParams);
+  const comp = shift364Days(cur);
+
+  const [curRes, prevRes] = await Promise.all([
+    supabase.from("sales_breakdown")
+      .select("sales_channel, sales, orders_count")
+      .gte("date", cur.from).lte("date", cur.to),
+    supabase.from("sales_breakdown")
+      .select("sales_channel, sales, orders_count")
+      .gte("date", comp.from).lte("date", comp.to),
+  ]);
+
+  if (curRes.error) throw curRes.error;
+  if (prevRes.error) throw prevRes.error;
+
+  const curRows = (curRes.data ?? []) as RawBreakdown[];
+  const prevRows = (prevRes.data ?? []) as RawBreakdown[];
+
+  const cDel = aggChannel(curRows, DELIVERY_CHANNELS);
+  const pDel = aggChannel(prevRows, DELIVERY_CHANNELS);
+  const cRest = aggChannel(curRows, RESTAURANT_CHANNELS);
+  const pRest = aggChannel(prevRows, RESTAURANT_CHANNELS);
+
+  return {
+    delivery: {
+      revenue: cDel.revenue, orders: cDel.orders, avgCheck: cDel.avgCheck,
+      prevRevenue: pDel.revenue, prevOrders: pDel.orders, prevAvgCheck: pDel.avgCheck,
+      revenueDelta: pct(cDel.revenue, pDel.revenue),
+      ordersDelta: pct(cDel.orders, pDel.orders),
+      avgCheckDelta: pct(cDel.avgCheck, pDel.avgCheck),
+    },
+    restaurant: {
+      revenue: cRest.revenue, orders: cRest.orders, avgCheck: cRest.avgCheck,
+      prevRevenue: pRest.revenue, prevOrders: pRest.orders, prevAvgCheck: pRest.avgCheck,
+      revenueDelta: pct(cRest.revenue, pRest.revenue),
+      ordersDelta: pct(cRest.orders, pRest.orders),
+      avgCheckDelta: pct(cRest.avgCheck, pRest.avgCheck),
+    },
   };
 }
 
