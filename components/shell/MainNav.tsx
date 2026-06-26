@@ -156,7 +156,7 @@ export function MainNav({
             const isGroupActive = entry.items.some((item) => item.id === activeSection);
             return (
               <div key={entry.label} className="mb-1">
-                <div className={`flex items-center gap-2.5 px-3 py-2 text-xs font-semibold uppercase tracking-wider ${isGroupActive ? "text-[#ff4e00]" : "text-[#7d6f5e] dark:text-[#a0907a]"}`} style={{ fontFamily: "Inter, sans-serif" }}>
+                <div className={`flex items-center gap-2.5 px-3 py-2 text-xs font-semibold uppercase tracking-wider ${isGroupActive ? "text-[#ff4e00]" : "text-[#7d6f5e] dark:text-[#a0907a]"}`}>
                   <entry.icon size={13} className="shrink-0" />
                   {entry.label}
                 </div>
@@ -173,7 +173,6 @@ export function MainNav({
                             ? "bg-[#ff4e00] text-white"
                             : "text-[#5a4f43] dark:text-[#a0907a] hover:bg-[#f0e4cc] dark:hover:bg-[#241f18] hover:text-[#120f0c] dark:hover:text-[#FBF3E6]"
                         }`}
-                        style={{ fontFamily: "Inter, sans-serif" }}
                       >
                         <span className={`w-1 h-1 rounded-full shrink-0 ${isActive ? "bg-white" : "bg-[#c4b49a] dark:bg-[#5a4f43]"}`} />
                         {label}
