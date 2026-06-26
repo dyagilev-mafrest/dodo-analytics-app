@@ -156,7 +156,7 @@ export function MainNav({
             const isGroupActive = entry.items.some((item) => item.id === activeSection);
             return (
               <div key={entry.label} className="mb-1">
-                <div className={`flex items-center gap-2.5 px-3 py-2 text-xs font-semibold uppercase tracking-wider ${isGroupActive ? "text-[#ff4e00]" : "text-[#7d6f5e] dark:text-[#a0907a]"}`}>
+                <div className={`flex items-center gap-2.5 px-3 py-2 text-xs font-semibold tracking-wide ${isGroupActive ? "text-[#ff4e00]" : "text-[#7d6f5e] dark:text-[#a0907a]"}`}>
                   <entry.icon size={13} className="shrink-0" />
                   {entry.label}
                 </div>
