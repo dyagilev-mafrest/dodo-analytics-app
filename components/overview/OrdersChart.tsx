@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer,
+  Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import type { OrdersChartPoint } from "@/lib/types";
 import type { Granularity } from "@/lib/queries/overview";
@@ -13,13 +13,17 @@ interface OrdersChartProps {
   gran: Granularity;
 }
 
-type Metric = "orders" | "avgCheck";
+type Metric = "orders" | "avgCheck" | "lflYoy";
 
 const RANK_COLORS = ["#ff4e00", "#f08c1a", "#e8b84b", "#94a3b8", "#7f92a8", "#6b8298", "#587089"];
 const RANK_WIDTHS = [2.5, 2, 1.75, 1.25, 1.25, 1.25, 1.25];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
+
+function formatPct(v: number) {
+  return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+}
 
 function formatOrders(v: number) {
   if (v >= 1_000) return `${(v / 1_000).toFixed(1)}К`;
@@ -70,6 +74,15 @@ export function OrdersChart({ data, gran }: OrdersChartProps) {
   const [metric, setMetric] = useState<Metric>("orders");
   const [mode, setMode] = useState<"network" | "by-unit">("network");
 
+  const lflYoyData = useMemo(() =>
+    data.map((p) => ({
+      date: p.date,
+      lfl: p.lflOrdersPrevYear ? +((p.lflOrders / p.lflOrdersPrevYear - 1) * 100).toFixed(1) : null,
+      yoy: p.ordersPrevYear ? +((p.orders / p.ordersPrevYear - 1) * 100).toFixed(1) : null,
+    })),
+    [data]
+  );
+
   const unitNames = useMemo(() => data[0]?.byUnit.map((u) => u.name) ?? [], [data]);
 
   const byUnitChartData = useMemo(() =>
@@ -102,18 +115,51 @@ export function OrdersChart({ data, gran }: OrdersChartProps) {
   const tickFmt = (v: string) => formatLabel(v, gran);
   const labelFmt = (v: Any) => formatLabel(String(v), gran);
 
-  const METRIC_OPTIONS = [{ id: "orders", label: "Заказы" }, { id: "avgCheck", label: "Средний чек" }];
+  const METRIC_OPTIONS = [
+    { id: "orders", label: "Заказы" },
+    { id: "avgCheck", label: "Средний чек" },
+    { id: "lflYoy", label: "LFL / YoY заказов" },
+  ];
   const VIEW_OPTIONS = [{ id: "network", label: "Сеть" }, { id: "by-unit", label: "По пиццериям" }];
+  const isLflYoy = metric === "lflYoy";
 
   return (
     <div className="bg-white dark:bg-[#1e1710] rounded-xl border border-[#ddd0b5] dark:border-[#3d352c] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <Toggle options={METRIC_OPTIONS} value={metric} onChange={(v) => setMetric(v as Metric)} />
-        <Toggle options={VIEW_OPTIONS} value={mode} onChange={(v) => setMode(v as "network" | "by-unit")} />
+        {!isLflYoy && <Toggle options={VIEW_OPTIONS} value={mode} onChange={(v) => setMode(v as "network" | "by-unit")} />}
       </div>
 
       <ResponsiveContainer width="100%" height={220}>
-        {mode === "network" ? (
+        {isLflYoy ? (
+          <LineChart data={lflYoyData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#ddd0b5" strokeOpacity={0.5} />
+            <XAxis dataKey="date" tickFormatter={tickFmt} tick={{ fontSize: 11, fontFamily: "Inter, sans-serif", fill: "#7d6f5e" }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={formatPct} tick={{ fontSize: 11, fontFamily: "Inter, sans-serif", fill: "#7d6f5e" }} axisLine={false} tickLine={false} width={52} />
+            <ReferenceLine y={0} stroke="#ddd0b5" strokeWidth={1} />
+            <Tooltip
+              content={({ label, payload }: Any) => {
+                if (!payload?.length) return null;
+                return (
+                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, border: "1px solid #ddd0b5", borderRadius: 8, background: "#fff", padding: "8px 12px", lineHeight: "1.8" }}>
+                    <p style={{ color: "#7d6f5e", marginBottom: 4, fontSize: 11 }}>{formatLabel(String(label), gran)}</p>
+                    {payload.map((e: Any) => (
+                      <div key={e.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                        <span style={{ color: e.color }}>{e.dataKey === "yoy" ? "YoY заказов" : "LFL заказов"}</span>
+                        <span style={{ color: "#3d352c", fontVariantNumeric: "tabular-nums" }}>
+                          {e.value != null ? formatPct(e.value as number) : "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }}
+            />
+            <Legend formatter={(v) => v === "yoy" ? "YoY заказов" : "LFL заказов"} wrapperStyle={{ fontFamily: "Inter, sans-serif", fontSize: 12 }} />
+            <Line type="monotone" dataKey="yoy" stroke="#ff4e00" strokeWidth={2} dot={{ r: 3, fill: "#fff", stroke: "#ff4e00", strokeWidth: 2 }} activeDot={{ r: 5, fill: "#ff4e00" }} connectNulls />
+            <Line type="monotone" dataKey="lfl" stroke="#0d9488" strokeWidth={1.75} dot={false} activeDot={{ r: 4, fill: "#0d9488" }} connectNulls />
+          </LineChart>
+        ) : mode === "network" ? (
           <LineChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#ddd0b5" strokeOpacity={0.5} />
             <XAxis dataKey="date" tickFormatter={tickFmt} tick={{ fontSize: 11, fontFamily: "Inter, sans-serif", fill: "#7d6f5e" }} axisLine={false} tickLine={false} />

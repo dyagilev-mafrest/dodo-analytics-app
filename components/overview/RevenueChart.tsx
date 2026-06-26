@@ -14,6 +14,7 @@ interface RevenueChartProps {
   gran: Granularity;
 }
 
+type Metric = "revenue" | "lflYoy";
 type ViewMode = "network" | "by-unit";
 
 const RANK_COLORS = ["#ff4e00", "#f08c1a", "#e8b84b", "#94a3b8", "#7f92a8", "#6b8298", "#587089"];
@@ -21,6 +22,10 @@ const RANK_WIDTHS = [2.5, 2, 1.75, 1.25, 1.25, 1.25, 1.25];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
+
+function formatPct(v: number) {
+  return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+}
 
 function formatRevenue(v: number) {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}М`;
@@ -102,8 +107,18 @@ function Toggle({ options, value, onChange }: {
 }
 
 export function RevenueChart({ data, gran }: RevenueChartProps) {
+  const [metric, setMetric] = useState<Metric>("revenue");
   const [mode, setMode] = useState<ViewMode>("network");
   const [selected, setSelected] = useState<RevenueChartPoint | null>(null);
+
+  const lflYoyData = useMemo(() =>
+    data.map((p) => ({
+      date: p.date,
+      lfl: p.lflPrevYear ? +((p.lfl / p.lflPrevYear - 1) * 100).toFixed(1) : null,
+      yoy: p.revenuePrevYear ? +((p.revenue / p.revenuePrevYear - 1) * 100).toFixed(1) : null,
+    })),
+    [data]
+  );
 
   const unitNames = useMemo(() => data[0]?.byUnit.map((u) => u.name) ?? [], [data]);
 
@@ -141,25 +156,53 @@ export function RevenueChart({ data, gran }: RevenueChartProps) {
 
   function switchMode(next: ViewMode) { setMode(next); setSelected(null); }
 
+  const METRIC_OPTIONS = [{ id: "revenue", label: "Выручка" }, { id: "lflYoy", label: "LFL / YoY выручки" }];
   const VIEW_OPTIONS = [{ id: "network", label: "Сеть" }, { id: "by-unit", label: "По пиццериям" }];
+  const isLflYoy = metric === "lflYoy";
 
   return (
     <div className="bg-white dark:bg-[#1e1710] rounded-xl border border-[#ddd0b5] dark:border-[#3d352c] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <p className="text-xs uppercase tracking-widest text-[#7d6f5e] dark:text-[#a0907a]" style={{ fontFamily: "Inter, sans-serif" }}>
-          Динамика выручки
-        </p>
-        <Toggle options={VIEW_OPTIONS} value={mode} onChange={(v) => switchMode(v as ViewMode)} />
+        <Toggle options={METRIC_OPTIONS} value={metric} onChange={(v) => { setMetric(v as Metric); setSelected(null); }} />
+        {!isLflYoy && <Toggle options={VIEW_OPTIONS} value={mode} onChange={(v) => switchMode(v as ViewMode)} />}
       </div>
 
-      {mode === "network" && (
+      {!isLflYoy && mode === "network" && (
         <p className="text-xs text-[#a0907a] dark:text-[#7d6f5e] mb-3" style={{ fontFamily: "Inter, sans-serif" }}>
           Нажмите на точку для разбивки по пиццериям
         </p>
       )}
 
       <ResponsiveContainer width="100%" height={220}>
-        {mode === "network" ? (
+        {isLflYoy ? (
+          <LineChart data={lflYoyData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#ddd0b5" strokeOpacity={0.5} />
+            <XAxis dataKey="date" tickFormatter={tickFmt} tick={{ fontSize: 11, fontFamily: "Inter, sans-serif", fill: "#7d6f5e" }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={formatPct} tick={{ fontSize: 11, fontFamily: "Inter, sans-serif", fill: "#7d6f5e" }} axisLine={false} tickLine={false} width={52} />
+            <ReferenceLine y={0} stroke="#ddd0b5" strokeWidth={1} />
+            <Tooltip
+              content={({ label, payload }: Any) => {
+                if (!payload?.length) return null;
+                return (
+                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, border: "1px solid #ddd0b5", borderRadius: 8, background: "#fff", padding: "8px 12px", lineHeight: "1.8" }}>
+                    <p style={{ color: "#7d6f5e", marginBottom: 4, fontSize: 11 }}>{formatLabel(String(label), gran)}</p>
+                    {payload.map((e: Any) => (
+                      <div key={e.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                        <span style={{ color: e.color }}>{e.dataKey === "yoy" ? "YoY выручки" : "LFL выручки"}</span>
+                        <span style={{ color: "#3d352c", fontVariantNumeric: "tabular-nums" }}>
+                          {e.value != null ? formatPct(e.value as number) : "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }}
+            />
+            <Legend formatter={(v) => v === "yoy" ? "YoY выручки" : "LFL выручки"} wrapperStyle={{ fontFamily: "Inter, sans-serif", fontSize: 12 }} />
+            <Line type="monotone" dataKey="yoy" stroke="#ff4e00" strokeWidth={2} dot={{ r: 3, fill: "#fff", stroke: "#ff4e00", strokeWidth: 2 }} activeDot={{ r: 5, fill: "#ff4e00" }} connectNulls />
+            <Line type="monotone" dataKey="lfl" stroke="#0d9488" strokeWidth={1.75} dot={false} activeDot={{ r: 4, fill: "#0d9488" }} connectNulls />
+          </LineChart>
+        ) : mode === "network" ? (
           <LineChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 0 }} onClick={handleNetworkClick} style={{ cursor: "pointer" }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#ddd0b5" strokeOpacity={0.5} />
             <XAxis dataKey="date" tickFormatter={tickFmt} tick={{ fontSize: 11, fontFamily: "Inter, sans-serif", fill: "#7d6f5e" }} axisLine={false} tickLine={false} />
@@ -209,7 +252,7 @@ export function RevenueChart({ data, gran }: RevenueChartProps) {
         )}
       </ResponsiveContainer>
 
-      {mode === "network" && selected && (
+      {!isLflYoy && mode === "network" && selected && (
         <BreakdownPanel date={selected.date} total={selected.revenue} units={selected.byUnit} gran={gran} onClose={() => setSelected(null)} />
       )}
     </div>

@@ -8,6 +8,8 @@ export interface RevenueChartPoint {
   date: string;
   revenue: number;
   revenuePrevYear: number;
+  lfl: number;
+  lflPrevYear: number;
   byUnit: UnitRevenue[];
 }
 
@@ -46,6 +48,10 @@ export interface OrdersChartPoint {
   ordersPrevYear: number;
   avgCheck: number;
   avgCheckPrevYear: number;
+  lflOrders: number;
+  lflOrdersPrevYear: number;
+  lflAvgCheck: number;
+  lflAvgCheckPrevYear: number;
   byUnit: UnitOrders[];
 }
 

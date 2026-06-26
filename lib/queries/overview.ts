@@ -249,24 +249,39 @@ export async function getRevenueChart(
     entry.byUnit.set(row.unit_id, (entry.byUnit.get(row.unit_id) ?? 0) + Number(row.sales));
   }
 
-  const prevByPeriod = new Map<string, number>();
+  const prevByPeriodTotal = new Map<string, number>();
+  const prevByPeriodUnit = new Map<string, Map<string, number>>();
+  const prevByUnitAll = new Map<string, number>();
   for (const row of prevRows) {
     const period = getPeriodStart(shiftDateByYear(row.date, 1), gran);
-    prevByPeriod.set(period, (prevByPeriod.get(period) ?? 0) + Number(row.sales));
+    const sales = Number(row.sales);
+    prevByPeriodTotal.set(period, (prevByPeriodTotal.get(period) ?? 0) + sales);
+    prevByUnitAll.set(row.unit_id, (prevByUnitAll.get(row.unit_id) ?? 0) + sales);
+    if (!prevByPeriodUnit.has(period)) prevByPeriodUnit.set(period, new Map());
+    const uMap = prevByPeriodUnit.get(period)!;
+    uMap.set(row.unit_id, (uMap.get(row.unit_id) ?? 0) + sales);
   }
 
+  const lflIds = [...unitIds].filter((id) => (prevByUnitAll.get(id) ?? 0) > 0);
   const nameMap = await fetchUnitNames(supabase, [...unitIds]);
 
   return [...byPeriod.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, entry]) => ({
-      date,
-      revenue: entry.revenue,
-      revenuePrevYear: prevByPeriod.get(date) ?? 0,
-      byUnit: [...entry.byUnit.entries()]
-        .map(([id, revenue]) => ({ id, name: nameMap.get(id) ?? id, revenue }))
-        .sort((a, b) => b.revenue - a.revenue),
-    }));
+    .map(([date, entry]) => {
+      const prevUnitMap = prevByPeriodUnit.get(date) ?? new Map<string, number>();
+      const lfl = lflIds.reduce((s, id) => s + (entry.byUnit.get(id) ?? 0), 0);
+      const lflPrevYear = lflIds.reduce((s, id) => s + (prevUnitMap.get(id) ?? 0), 0);
+      return {
+        date,
+        revenue: entry.revenue,
+        revenuePrevYear: prevByPeriodTotal.get(date) ?? 0,
+        lfl,
+        lflPrevYear,
+        byUnit: [...entry.byUnit.entries()]
+          .map(([id, revenue]) => ({ id, name: nameMap.get(id) ?? id, revenue }))
+          .sort((a, b) => b.revenue - a.revenue),
+      };
+    });
 }
 
 // ── Orders chart ──────────────────────────────────────────────────────────────
@@ -305,27 +320,46 @@ export async function getOrdersChart(
     entry.byUnit.set(row.unit_id, u);
   }
 
-  const prevByPeriod = new Map<string, { orders: number; revenue: number }>();
+  const prevByPeriodTotal = new Map<string, { orders: number; revenue: number }>();
+  const prevByPeriodUnit = new Map<string, Map<string, { orders: number; revenue: number }>>();
+  const prevByUnitAll = new Map<string, number>();
   for (const row of prevRows) {
     const period = getPeriodStart(shiftDateByYear(row.date, 1), gran);
-    const entry = prevByPeriod.get(period) ?? { orders: 0, revenue: 0 };
-    entry.orders += Number(row.orders_count);
-    entry.revenue += Number(row.sales);
-    prevByPeriod.set(period, entry);
+    const sales = Number(row.sales);
+    const ords = Number(row.orders_count);
+    const tot = prevByPeriodTotal.get(period) ?? { orders: 0, revenue: 0 };
+    tot.orders += ords; tot.revenue += sales;
+    prevByPeriodTotal.set(period, tot);
+    prevByUnitAll.set(row.unit_id, (prevByUnitAll.get(row.unit_id) ?? 0) + sales);
+    if (!prevByPeriodUnit.has(period)) prevByPeriodUnit.set(period, new Map());
+    const uMap = prevByPeriodUnit.get(period)!;
+    const pu = uMap.get(row.unit_id) ?? { orders: 0, revenue: 0 };
+    pu.orders += ords; pu.revenue += sales;
+    uMap.set(row.unit_id, pu);
   }
 
+  const lflIds = [...unitIds].filter((id) => (prevByUnitAll.get(id) ?? 0) > 0);
   const nameMap = await fetchUnitNames(supabase, [...unitIds]);
 
   return [...byPeriod.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, entry]) => {
-      const prevEntry = prevByPeriod.get(date) ?? { orders: 0, revenue: 0 };
+      const prevEntry = prevByPeriodTotal.get(date) ?? { orders: 0, revenue: 0 };
+      const prevUnitMap = prevByPeriodUnit.get(date) ?? new Map<string, { orders: number; revenue: number }>();
+      const lflOrd = lflIds.reduce((s, id) => s + (entry.byUnit.get(id)?.orders ?? 0), 0);
+      const lflRev = lflIds.reduce((s, id) => s + (entry.byUnit.get(id)?.revenue ?? 0), 0);
+      const lflPrevOrd = lflIds.reduce((s, id) => s + (prevUnitMap.get(id)?.orders ?? 0), 0);
+      const lflPrevRev = lflIds.reduce((s, id) => s + (prevUnitMap.get(id)?.revenue ?? 0), 0);
       return {
         date,
         orders: entry.orders,
         ordersPrevYear: prevEntry.orders,
         avgCheck: entry.orders > 0 ? Math.round(entry.revenue / entry.orders) : 0,
         avgCheckPrevYear: prevEntry.orders > 0 ? Math.round(prevEntry.revenue / prevEntry.orders) : 0,
+        lflOrders: lflOrd,
+        lflOrdersPrevYear: lflPrevOrd,
+        lflAvgCheck: lflOrd > 0 ? Math.round(lflRev / lflOrd) : 0,
+        lflAvgCheckPrevYear: lflPrevOrd > 0 ? Math.round(lflPrevRev / lflPrevOrd) : 0,
         byUnit: [...entry.byUnit.entries()]
           .map(([id, u]) => ({
             id,
