@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { KpiData, RevenueChartPoint, UnitRow, Totals } from "@/lib/types";
+import type { KpiData, RevenueChartPoint, OrdersChartPoint, UnitRow, Totals } from "@/lib/types";
 
 export type Granularity = "day" | "week" | "month";
 
@@ -190,6 +190,7 @@ export async function getKpis(
 
   return {
     revenue, orders, avgCheck,
+    prevRevenue, prevOrders, prevAvgCheck,
     revenueDelta: pct(revenue, prevRevenue),
     ordersDelta: pct(orders, prevOrders),
     avgCheckDelta: pct(avgCheck, prevAvgCheck),
@@ -261,6 +262,89 @@ export async function getRevenueChart(
         .map(([id, u]) => ({ id, name: u.name, revenue: u.revenue }))
         .sort((a, b) => b.revenue - a.revenue),
     }));
+}
+
+// ── Orders chart ──────────────────────────────────────────────────────────────
+
+type RawDailySale = { date: string; unit_id: string; sales: number; orders_count: number };
+
+function getPeriodStart(dateStr: string, gran: Granularity): string {
+  if (gran === "month") return dateStr.slice(0, 7) + "-01";
+  if (gran === "week") {
+    const d = new Date(dateStr + "T00:00:00Z");
+    const daysSinceMon = (d.getUTCDay() + 6) % 7;
+    const mon = new Date(d);
+    mon.setUTCDate(d.getUTCDate() - daysSinceMon);
+    return mon.toISOString().slice(0, 10);
+  }
+  return dateStr;
+}
+
+export async function getOrdersChart(
+  supabase: SupabaseClient,
+  dateParams: DateParams,
+  gran: Granularity
+): Promise<OrdersChartPoint[]> {
+  const cur = resolveRange(dateParams);
+  const prev = shiftYear(cur, -1);
+
+  const [{ data: curData, error: e1 }, { data: prevData, error: e2 }] = await Promise.all([
+    supabase.from("daily_sales").select("date,unit_id,sales,orders_count").gte("date", cur.from).lte("date", cur.to),
+    supabase.from("daily_sales").select("date,unit_id,sales,orders_count").gte("date", prev.from).lte("date", prev.to),
+  ]);
+
+  if (e1) throw e1;
+  if (e2) throw e2;
+
+  const rows = (curData as RawDailySale[]) ?? [];
+  const prevRows = (prevData as RawDailySale[]) ?? [];
+  const unitIds = new Set<string>();
+
+  const byPeriod = new Map<string, { orders: number; revenue: number; byUnit: Map<string, { orders: number; revenue: number }> }>();
+  for (const row of rows) {
+    const period = getPeriodStart(row.date, gran);
+    unitIds.add(row.unit_id);
+    if (!byPeriod.has(period)) byPeriod.set(period, { orders: 0, revenue: 0, byUnit: new Map() });
+    const entry = byPeriod.get(period)!;
+    entry.orders += Number(row.orders_count);
+    entry.revenue += Number(row.sales);
+    const u = entry.byUnit.get(row.unit_id) ?? { orders: 0, revenue: 0 };
+    u.orders += Number(row.orders_count);
+    u.revenue += Number(row.sales);
+    entry.byUnit.set(row.unit_id, u);
+  }
+
+  const prevByPeriod = new Map<string, { orders: number; revenue: number }>();
+  for (const row of prevRows) {
+    const period = getPeriodStart(shiftDateByYear(row.date, 1), gran);
+    const entry = prevByPeriod.get(period) ?? { orders: 0, revenue: 0 };
+    entry.orders += Number(row.orders_count);
+    entry.revenue += Number(row.sales);
+    prevByPeriod.set(period, entry);
+  }
+
+  const nameMap = await fetchUnitNames(supabase, [...unitIds]);
+
+  return [...byPeriod.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, entry]) => {
+      const prevEntry = prevByPeriod.get(date) ?? { orders: 0, revenue: 0 };
+      return {
+        date,
+        orders: entry.orders,
+        ordersPrevYear: prevEntry.orders,
+        avgCheck: entry.orders > 0 ? Math.round(entry.revenue / entry.orders) : 0,
+        avgCheckPrevYear: prevEntry.orders > 0 ? Math.round(prevEntry.revenue / prevEntry.orders) : 0,
+        byUnit: [...entry.byUnit.entries()]
+          .map(([id, u]) => ({
+            id,
+            name: nameMap.get(id) ?? id,
+            orders: u.orders,
+            avgCheck: u.orders > 0 ? Math.round(u.revenue / u.orders) : 0,
+          }))
+          .sort((a, b) => b.orders - a.orders),
+      };
+    });
 }
 
 // ── Units table ────────────────────────────────────────────────────────────────

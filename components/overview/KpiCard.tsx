@@ -4,12 +4,15 @@ interface KpiCardProps {
   label: string;
   value: string;
   delta?: number;
-  deltaLabel?: string;
+  prevValue?: string;
 }
 
-export function KpiCard({ label, value, delta, deltaLabel }: KpiCardProps) {
+export function KpiCard({ label, value, delta, prevValue }: KpiCardProps) {
   const isPositive = (delta ?? 0) >= 0;
-  const hasData = delta !== undefined;
+  const isNeutral = delta === undefined;
+  const deltaColor = isPositive
+    ? "text-[#16a34a] dark:text-[#4ade80]"
+    : "text-[#dc2626] dark:text-[#f87171]";
 
   return (
     <div className="bg-white dark:bg-[#1e1710] rounded-xl border border-[#ddd0b5] dark:border-[#3d352c] p-5 flex flex-col gap-3">
@@ -27,22 +30,25 @@ export function KpiCard({ label, value, delta, deltaLabel }: KpiCardProps) {
         {value}
       </p>
 
-      {hasData && (
+      {prevValue !== undefined ? (
+        <div className="flex items-center gap-2 text-xs" style={{ fontFamily: "Inter, sans-serif" }}>
+          <span className="text-[#7d6f5e] dark:text-[#a0907a]">год назад: {prevValue}</span>
+          {!isNeutral && (
+            <span className={`flex items-center gap-0.5 font-medium ${deltaColor}`}>
+              {isPositive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+              {isPositive ? "+" : ""}{delta?.toFixed(1)}%
+            </span>
+          )}
+        </div>
+      ) : !isNeutral && (
         <div
-          className={`flex items-center gap-1 text-sm font-medium ${
-            isPositive
-              ? "text-[#16a34a] dark:text-[#4ade80]"
-              : "text-[#dc2626] dark:text-[#f87171]"
-          }`}
+          className={`flex items-center gap-1 text-sm font-medium ${deltaColor}`}
           style={{ fontFamily: "Inter, sans-serif" }}
         >
           {isPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
           <span>
-            {isPositive ? "+" : ""}
-            {delta?.toFixed(1)}%{" "}
-            {deltaLabel && (
-              <span className="text-[#a0907a] font-normal">{deltaLabel}</span>
-            )}
+            {isPositive ? "+" : ""}{delta?.toFixed(1)}%{" "}
+            <span className="text-[#a0907a] font-normal">к прошлому году</span>
           </span>
         </div>
       )}

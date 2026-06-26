@@ -33,10 +33,29 @@ export interface Totals {
   yoyOrders: number;
 }
 
+export interface UnitOrders {
+  id: string;
+  name: string;
+  orders: number;
+  avgCheck: number;
+}
+
+export interface OrdersChartPoint {
+  date: string;
+  orders: number;
+  ordersPrevYear: number;
+  avgCheck: number;
+  avgCheckPrevYear: number;
+  byUnit: UnitOrders[];
+}
+
 export interface KpiData {
   revenue: number;
   orders: number;
   avgCheck: number;
+  prevRevenue: number;
+  prevOrders: number;
+  prevAvgCheck: number;
   revenueDelta: number;
   ordersDelta: number;
   avgCheckDelta: number;
