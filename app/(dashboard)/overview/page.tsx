@@ -17,8 +17,6 @@ interface PageProps {
 }
 
 function formatRub(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)} М ₽`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)} К ₽`;
   return `${n.toLocaleString("ru-RU")} ₽`;
 }
 
