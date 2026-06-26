@@ -63,7 +63,7 @@ interface MetricRow { label: string; value: string; prev?: string; delta?: numbe
 function ChannelCard({ title, metrics }: { title: string; metrics: MetricRow[] | null }) {
   return (
     <div className="bg-white dark:bg-[#1e1710] rounded-xl border border-[#ddd0b5] dark:border-[#3d352c] p-4">
-      <p className="text-[10px] uppercase tracking-widest text-[#a0907a] dark:text-[#7d6f5e] mb-4" style={{ fontFamily: "Inter, sans-serif" }}>
+      <p className="text-[10px] uppercase tracking-widest text-[#7d6f5e] dark:text-[#a0907a] mb-4" style={{ fontFamily: "Inter, sans-serif" }}>
         {title}
       </p>
       {metrics ? (
@@ -71,7 +71,7 @@ function ChannelCard({ title, metrics }: { title: string; metrics: MetricRow[] |
           {metrics.map((m, i) => (
             <div key={i}>
               {i > 0 && <div className="border-t border-[#ddd0b5] dark:border-[#3d352c] -mx-4 mb-4" />}
-              <p className="text-[10px] uppercase tracking-widest text-[#a0907a] dark:text-[#7d6f5e] mb-1" style={{ fontFamily: "Inter, sans-serif" }}>{m.label}</p>
+              <p className="text-[10px] uppercase tracking-widest text-[#7d6f5e] dark:text-[#a0907a] mb-1" style={{ fontFamily: "Inter, sans-serif" }}>{m.label}</p>
               <p className="text-xl font-extrabold text-[#120f0c] dark:text-[#FBF3E6] leading-none mb-1" style={{ fontFamily: '"Rooftop", sans-serif' }}>{m.value}</p>
               {m.prev !== undefined && (
                 <div className="flex items-center gap-2 text-xs flex-wrap" style={{ fontFamily: "Inter, sans-serif" }}>
@@ -99,10 +99,10 @@ function ChannelCard({ title, metrics }: { title: string; metrics: MetricRow[] |
 
 function LflPill({ label, value, isTeal }: { label: string; value: string; isTeal?: boolean }) {
   const num = parseFloat(value);
-  const color = isTeal ? "#0d9488" : isNaN(num) || num === 0 ? "#7d6f5e" : num > 0 ? "#16a34a" : "#dc2626";
+  const color = isNaN(num) || num === 0 ? "#7d6f5e" : num < 0 ? "#dc2626" : isTeal ? "#0d9488" : "#16a34a";
   return (
     <div className="bg-white dark:bg-[#1e1710] rounded-xl border border-[#ddd0b5] dark:border-[#3d352c] px-4 py-3">
-      <p className="text-[10px] uppercase tracking-widest text-[#a0907a] dark:text-[#7d6f5e] mb-1.5" style={{ fontFamily: "Inter, sans-serif" }}>{label}</p>
+      <p className="text-[10px] uppercase tracking-widest text-[#7d6f5e] dark:text-[#a0907a] mb-1.5" style={{ fontFamily: "Inter, sans-serif" }}>{label}</p>
       <p className="text-lg font-bold leading-none" style={{ fontFamily: '"Rooftop", sans-serif', color }}>{value}</p>
     </div>
   );
