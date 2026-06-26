@@ -130,11 +130,10 @@ export async function getKpis(
 ): Promise<KpiData> {
   const cur = resolveRange(dateParams);
   const comp = shift364Days(cur);
-  const prevYear = shiftYear(cur, -1);
 
   const [curTotal, prevTotal, curByUnitRes, compByUnitRes, unitsOpenDates] = await Promise.all([
     rpcSumSales(supabase, cur.from, cur.to, unitId),
-    rpcSumSales(supabase, prevYear.from, prevYear.to, unitId),
+    rpcSumSales(supabase, comp.from, comp.to, unitId),
     rpcSumSalesByUnit(supabase, cur.from, cur.to),
     rpcSumSalesByUnit(supabase, comp.from, comp.to),
     fetchUnitsOpenDate(supabase),
