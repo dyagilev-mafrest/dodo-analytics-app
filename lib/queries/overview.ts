@@ -200,71 +200,7 @@ export async function getKpis(
   };
 }
 
-// ── Revenue chart ──────────────────────────────────────────────────────────────
-
-type RpcChartRow = { period_start: string; unit_id: string; revenue: number };
-
-export async function getRevenueChart(
-  supabase: SupabaseClient,
-  dateParams: DateParams,
-  unitId: string,
-  gran: Granularity
-): Promise<RevenueChartPoint[]> {
-  const cur = resolveRange(dateParams);
-  const prev = shiftYear(cur, -1);
-
-  const [{ data: curData, error: e1 }, { data: prevData, error: e2 }] =
-    await Promise.all([
-      supabase.rpc("revenue_chart", { p_from: cur.from, p_to: cur.to, p_unit: unitId, p_gran: gran }),
-      supabase.rpc("revenue_chart", { p_from: prev.from, p_to: prev.to, p_unit: unitId, p_gran: gran }),
-    ]);
-
-  if (e1) throw e1;
-  if (e2) throw e2;
-
-  // Prev year lookup: shift period_start by +1 year to align with current
-  const prevByDate = new Map<string, number>();
-  for (const row of (prevData as RpcChartRow[] | null) ?? []) {
-    const shifted = shiftDateByYear(row.period_start, 1);
-    prevByDate.set(shifted, (prevByDate.get(shifted) ?? 0) + Number(row.revenue));
-  }
-
-  // Group current data by period_start
-  const byPeriod = new Map<string, { revenue: number; byUnit: Map<string, { name: string; revenue: number }> }>();
-  const unitIds = new Set<string>();
-
-  for (const row of (curData as RpcChartRow[] | null) ?? []) {
-    unitIds.add(row.unit_id);
-    if (!byPeriod.has(row.period_start)) {
-      byPeriod.set(row.period_start, { revenue: 0, byUnit: new Map() });
-    }
-    const entry = byPeriod.get(row.period_start)!;
-    entry.revenue += Number(row.revenue);
-    const u = entry.byUnit.get(row.unit_id) ?? { name: row.unit_id, revenue: 0 };
-    u.revenue += Number(row.revenue);
-    entry.byUnit.set(row.unit_id, u);
-  }
-
-  const nameMap = await fetchUnitNames(supabase, [...unitIds]);
-  for (const entry of byPeriod.values()) {
-    for (const [id, u] of entry.byUnit) {
-      u.name = nameMap.get(id) ?? id;
-    }
-  }
-
-  return [...byPeriod.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, entry]) => ({
-      date,
-      revenue: entry.revenue,
-      revenuePrevYear: prevByDate.get(date) ?? 0,
-      byUnit: [...entry.byUnit.entries()]
-        .map(([id, u]) => ({ id, name: u.name, revenue: u.revenue }))
-        .sort((a, b) => b.revenue - a.revenue),
-    }));
-}
-
-// ── Orders chart ──────────────────────────────────────────────────────────────
+// ── Chart helpers ─────────────────────────────────────────────────────────────
 
 type RawDailySale = { date: string; unit_id: string; sales: number; orders_count: number };
 
@@ -279,6 +215,61 @@ function getPeriodStart(dateStr: string, gran: Granularity): string {
   }
   return dateStr;
 }
+
+// ── Revenue chart ──────────────────────────────────────────────────────────────
+
+export async function getRevenueChart(
+  supabase: SupabaseClient,
+  dateParams: DateParams,
+  _unitId: string,
+  gran: Granularity
+): Promise<RevenueChartPoint[]> {
+  const cur = resolveRange(dateParams);
+  const prev = shiftYear(cur, -1);
+
+  const [{ data: curData, error: e1 }, { data: prevData, error: e2 }] = await Promise.all([
+    supabase.from("daily_sales").select("date,unit_id,sales").gte("date", cur.from).lte("date", cur.to),
+    supabase.from("daily_sales").select("date,unit_id,sales").gte("date", prev.from).lte("date", prev.to),
+  ]);
+
+  if (e1) throw e1;
+  if (e2) throw e2;
+
+  const rows = (curData as Pick<RawDailySale, "date" | "unit_id" | "sales">[]) ?? [];
+  const prevRows = (prevData as Pick<RawDailySale, "date" | "unit_id" | "sales">[]) ?? [];
+  const unitIds = new Set<string>();
+
+  const byPeriod = new Map<string, { revenue: number; byUnit: Map<string, number> }>();
+  for (const row of rows) {
+    const period = getPeriodStart(row.date, gran);
+    unitIds.add(row.unit_id);
+    if (!byPeriod.has(period)) byPeriod.set(period, { revenue: 0, byUnit: new Map() });
+    const entry = byPeriod.get(period)!;
+    entry.revenue += Number(row.sales);
+    entry.byUnit.set(row.unit_id, (entry.byUnit.get(row.unit_id) ?? 0) + Number(row.sales));
+  }
+
+  const prevByPeriod = new Map<string, number>();
+  for (const row of prevRows) {
+    const period = getPeriodStart(shiftDateByYear(row.date, 1), gran);
+    prevByPeriod.set(period, (prevByPeriod.get(period) ?? 0) + Number(row.sales));
+  }
+
+  const nameMap = await fetchUnitNames(supabase, [...unitIds]);
+
+  return [...byPeriod.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, entry]) => ({
+      date,
+      revenue: entry.revenue,
+      revenuePrevYear: prevByPeriod.get(date) ?? 0,
+      byUnit: [...entry.byUnit.entries()]
+        .map(([id, revenue]) => ({ id, name: nameMap.get(id) ?? id, revenue }))
+        .sort((a, b) => b.revenue - a.revenue),
+    }));
+}
+
+// ── Orders chart ──────────────────────────────────────────────────────────────
 
 export async function getOrdersChart(
   supabase: SupabaseClient,
