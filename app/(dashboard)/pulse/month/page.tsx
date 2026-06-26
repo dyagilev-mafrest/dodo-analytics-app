@@ -1,6 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getKpis } from "@/lib/queries/overview";
-import { TrendingUp, Zap, ShieldAlert, Users, Star, Package } from "lucide-react";
+import { TrendingUp, TrendingDown, Zap, ShieldAlert, Users, Star, Package } from "lucide-react";
 
 // ─── period helpers ───────────────────────────────────────────────────────────
 
@@ -71,12 +71,13 @@ function ChannelCard({ title, metrics }: { title: string; metrics: MetricRow[] |
               {i > 0 && <div className="border-t border-[#ddd0b5] dark:border-[#3d352c] -mx-4 mb-4" />}
               <p className="text-[10px] uppercase tracking-widest text-[#a0907a] dark:text-[#7d6f5e] mb-1" style={{ fontFamily: "Inter, sans-serif" }}>{m.label}</p>
               <p className="text-xl font-extrabold text-[#120f0c] dark:text-[#FBF3E6] leading-none mb-1" style={{ fontFamily: '"Rooftop", sans-serif' }}>{m.value}</p>
-              {(m.prev !== undefined || m.delta !== undefined) && (
+              {m.prev !== undefined && (
                 <div className="flex items-center gap-2 text-xs flex-wrap" style={{ fontFamily: "Inter, sans-serif" }}>
-                  {m.prev !== undefined && <span className="text-[#a0907a] dark:text-[#7d6f5e]">г/н: {m.prev}</span>}
+                  <span className="text-[#7d6f5e] dark:text-[#a0907a]">год назад: {m.prev}</span>
                   {m.delta !== undefined && (
-                    <span className={`font-semibold ${m.delta >= 0 ? "text-[#16a34a]" : "text-[#dc2626]"}`}>
-                      {m.delta >= 0 ? "↑ +" : "↓ "}{m.delta.toFixed(1)}%
+                    <span className={`flex items-center gap-0.5 font-medium ${m.delta >= 0 ? "text-[#16a34a] dark:text-[#4ade80]" : "text-[#dc2626] dark:text-[#f87171]"}`}>
+                      {m.delta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                      {m.delta >= 0 ? "+" : ""}{m.delta.toFixed(1)}%
                     </span>
                   )}
                 </div>
