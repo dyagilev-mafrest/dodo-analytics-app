@@ -2,15 +2,28 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, Truck, UtensilsCrossed, Gauge, AlertTriangle, Tag } from "lucide-react";
+import { Activity, BarChart2, Truck, UtensilsCrossed, Gauge, AlertTriangle, Tag } from "lucide-react";
 
-const NAV_ITEMS = [
-  { id: "overview",      label: "Обзор сети",        icon: LayoutDashboard, href: "/overview" },
-  { id: "delivery",      label: "Доставка",           icon: Truck,           href: "/delivery" },
-  { id: "restaurant",    label: "Ресторан",           icon: UtensilsCrossed, href: "/restaurant" },
-  { id: "productivity",  label: "Производительность", icon: Gauge,           href: "/productivity" },
-  { id: "stop-lists",    label: "Стопы",              icon: AlertTriangle,   href: "/stop-lists" },
-  { id: "discounts",     label: "Дисконт",            icon: Tag,             href: "/discounts" },
+type NavItem = { type: "item"; id: string; label: string; icon: React.ComponentType<{ size?: number; className?: string }>; href: string };
+type NavGroup = { type: "group"; label: string; icon: React.ComponentType<{ size?: number; className?: string }>; items: { id: string; label: string; href: string }[] };
+type NavEntry = NavItem | NavGroup;
+
+const NAV_ENTRIES: NavEntry[] = [
+  {
+    type: "group",
+    label: "Бизнес-пульс",
+    icon: Activity,
+    items: [
+      { id: "pulse-week",  label: "Неделя", href: "/pulse/week" },
+      { id: "pulse-month", label: "Месяц",  href: "/pulse/month" },
+    ],
+  },
+  { type: "item", id: "overview",     label: "Продажи",            icon: BarChart2,       href: "/overview" },
+  { type: "item", id: "delivery",     label: "Доставка",           icon: Truck,           href: "/delivery" },
+  { type: "item", id: "restaurant",   label: "Ресторан",           icon: UtensilsCrossed, href: "/restaurant" },
+  { type: "item", id: "productivity", label: "Производительность", icon: Gauge,           href: "/productivity" },
+  { type: "item", id: "stop-lists",   label: "Стопы",              icon: AlertTriangle,   href: "/stop-lists" },
+  { type: "item", id: "discounts",    label: "Дисконт",            icon: Tag,             href: "/discounts" },
 ];
 
 const GRAN_OPTIONS = [
@@ -138,7 +151,40 @@ export function MainNav({
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map(({ id, label, icon: Icon, href }) => {
+        {NAV_ENTRIES.map((entry) => {
+          if (entry.type === "group") {
+            const isGroupActive = entry.items.some((item) => item.id === activeSection);
+            return (
+              <div key={entry.label} className="mb-1">
+                <div className={`flex items-center gap-2.5 px-3 py-2 text-xs font-semibold uppercase tracking-wider ${isGroupActive ? "text-[#ff4e00]" : "text-[#7d6f5e] dark:text-[#a0907a]"}`} style={{ fontFamily: "Inter, sans-serif" }}>
+                  <entry.icon size={13} className="shrink-0" />
+                  {entry.label}
+                </div>
+                <div className="ml-2 space-y-0.5">
+                  {entry.items.map(({ id, label, href }) => {
+                    const isActive = activeSection === id;
+                    return (
+                      <Link
+                        key={id}
+                        href={href}
+                        onClick={onNavClick}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isActive
+                            ? "bg-[#ff4e00] text-white"
+                            : "text-[#5a4f43] dark:text-[#a0907a] hover:bg-[#f0e4cc] dark:hover:bg-[#241f18] hover:text-[#120f0c] dark:hover:text-[#FBF3E6]"
+                        }`}
+                        style={{ fontFamily: "Inter, sans-serif" }}
+                      >
+                        <span className={`w-1 h-1 rounded-full shrink-0 ${isActive ? "bg-white" : "bg-[#c4b49a] dark:bg-[#5a4f43]"}`} />
+                        {label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+          const { id, label, icon: Icon, href } = entry;
           const isActive = activeSection === id;
           return (
             <Link

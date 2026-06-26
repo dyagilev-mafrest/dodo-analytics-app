@@ -42,7 +42,10 @@ export default function AppShell({ user, children }: AppShellProps) {
     router.push(`${pathname}?${params.toString()}`);
   }
 
-  const activeSection = pathname.split("/").filter(Boolean)[0] ?? "overview";
+  const segments = pathname.split("/").filter(Boolean);
+  const activeSection = segments[0] === "pulse"
+    ? `pulse-${segments[1] ?? "week"}`
+    : (segments[0] ?? "overview");
 
   const sidebar = (
     <div className="flex flex-col h-full w-[260px] bg-white dark:bg-[#1e1710] border-r border-[#ddd0b5] dark:border-[#3d352c]">

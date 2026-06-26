@@ -59,7 +59,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
         className="text-xl text-[#120f0c] dark:text-[#FBF3E6]"
         style={{ fontFamily: '"Rooftop", sans-serif', fontWeight: 700 }}
       >
-        Обзор сети
+        Продажи
       </h1>
 
       {/* Row 1: Revenue KPIs + Revenue Chart */}
